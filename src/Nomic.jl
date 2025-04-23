@@ -5,7 +5,6 @@ export nomicModel, NomicEmbedderModel, reverse_keymap_to_list, extract_added_tok
 
 # Most parts of this code are borrowed from transformers.jl and FlashRank.jl
 
-
 function isinvalid(c)
     if c == '\t' || c == '\n' || c == '\r'
         return false
@@ -233,7 +232,7 @@ abstract type AbstractEmbedderModel end
 
 struct NomicEmbedderModel <: AbstractEmbedderModel
     alias::Symbol
-    model::NomicEmbedder
+    encoder::NomicEmbedder
     session::InferenceSession
 end
 
@@ -435,7 +434,11 @@ function embed(
         ## transpose as the model expects row-major
         ## TODO: investigate pre-warming the session with padded inputs
         ## TODO: investigate performnance on materialized inputs
-        onnx_input = Dict("input_ids" => token_ids', "attention_mask" => attention_mask')
+        onnx_input = Dict(
+            "input_ids" => token_ids |> CuArray,
+            "token_type_ids" => token_type_ids |> CuArray,
+            "attention_mask" => attention_mask |> CuArray
+        )
         out = embedder.session(onnx_input)
         ## Permute dimensions to return column-major embeddings, ie, batch-size X embedding-size
         embeddings = out["avg_embeddings"] |> permutedims
@@ -457,10 +460,14 @@ function embed(
         token_ids, token_type_ids, attention_mask = encode(
             embedder.encoder, passage; split_instead_trunc)
         ## transpose as the model expects row-major
-        onnx_input = Dict("input_ids" => token_ids', "attention_mask" => attention_mask')
+        onnx_input = Dict(
+            "input_ids" => token_ids',
+            "token_type_ids" => token_type_ids',
+            "attention_mask" => attention_mask'
+        )
         out = embedder.session(onnx_input)
         ## Permute dimensions to return column-major embeddings, ie, batch-size X embedding-size
-        embeddings = out["avg_embeddings"] |> permutedims
+        embeddings = out["last_hidden_state"]
     end
     EmbedResult(embeddings, t)
 end
