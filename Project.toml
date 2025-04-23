@@ -1,0 +1,24 @@
+name = "NomicEmbeddings"
+uuid = "3f4be004-e025-4235-a420-e1bd00dd0726"
+authors = ["Arhik <arhik23@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+DataDeps = "124859b0-ceae-595e-8997-d05f6a7a8dfe"
+DoubleArrayTries = "abbaa0e5-f788-499c-92af-c35ff4258c82"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+ONNXRunTime = "e034b28e-924e-41b2-b98f-d2bbeb830c6a"
+Unicode = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+WordTokenizers = "796a5d58-b03d-544a-977e-18100b691f6e"
+cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
+
+[compat]
+CUDA = "5.7.3"
+DataDeps = "0.7.13"
+DoubleArrayTries = "0.1.1"
+JSON = "0.21.4"
+ONNXRunTime = "1.3.1"
+Unicode = "1.11.0"
+WordTokenizers = "0.5.6"
+cuDNN = "1.4.2"

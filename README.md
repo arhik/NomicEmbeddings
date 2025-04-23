@@ -1,0 +1,2 @@
+# NomicEmbeddings
+ Nomic Embedding Encoder
