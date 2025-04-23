@@ -435,13 +435,13 @@ function embed(
         ## TODO: investigate pre-warming the session with padded inputs
         ## TODO: investigate performnance on materialized inputs
         onnx_input = Dict(
-            "input_ids" => token_ids |> CuArray,
-            "token_type_ids" => token_type_ids |> CuArray,
-            "attention_mask" => attention_mask |> CuArray
+            "input_ids" => token_ids',
+            "token_type_ids" => token_type_ids',
+            "attention_mask" => attention_mask'
         )
         out = embedder.session(onnx_input)
         ## Permute dimensions to return column-major embeddings, ie, batch-size X embedding-size
-        embeddings = out["avg_embeddings"] |> permutedims
+        embeddings = out["last_hidden_state"]
     end
     EmbedResult(embeddings, t)
 end
@@ -475,5 +475,37 @@ end
 function (embedder::NomicEmbedderModel)(
         passages::Union{AbstractString, AbstractVector{<:AbstractString}}; kwargs...)
     embed(embedder, passages; kwargs...)
+end
+
+function encode(enc::NomicEmbedder, passages::AbstractVector{<:AbstractString};
+    add_special_tokens::Bool = true)
+    tokens_vec = [tokenize(enc, passage; add_special_tokens = true, token_ids = true)
+                for passage in passages]
+    max_len = maximum(length, tokens_vec) |>
+            x -> isnothing(enc.trunc) ? x : min(x, enc.trunc)
+
+    ## Assumes that padding is done with token ID 0
+    token_ids = zeros(Int, max_len, length(passages))
+    # Zero indexed as models are trained for Python
+    token_type_ids = zeros(Int, max_len, length(passages))
+    attention_mask = zeros(Int, max_len, length(passages))
+
+    ## Encode to token IDS
+    @inbounds for j in eachindex(tokens_vec)
+        tokens = tokens_vec[j]
+        for i in eachindex(tokens)
+            if i > max_len
+                break
+            elseif i == max_len
+                ## give [SEP] token
+                token_ids[i, j] = enc.vocab[enc.endsym]
+            else
+                ## fill the tokens
+                token_ids[i, j] = tokens[i]
+            end
+            attention_mask[i, j] = 1
+        end
+    end
+    return token_ids, token_type_ids, attention_mask
 end
 
