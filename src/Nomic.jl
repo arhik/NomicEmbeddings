@@ -1,7 +1,8 @@
 
 abstract type AbstractEmbedder end
 
-export nomicModel, NomicEmbedderModel, reverse_keymap_to_list, extract_added_token, embed, encode
+export nomicModel,
+    NomicEmbedderModel, reverse_keymap_to_list, extract_added_token, embed, encode
 
 # Most parts of this code are borrowed from transformers.jl and FlashRank.jl
 
@@ -104,10 +105,10 @@ function extract_added_token(added_token)
 
     added_token["rstrip"] ||
         added_token["lstrip"] && tokenizer_warn(
-            "match token `$token` require to match with space on either side but that is not implemented here"
+            "match token `$token` require to match with space on either side but that is not implemented here",
         )
     added_token["single_word"] && tokenizer_warn(
-        "match token `$token` does not match inside of a word but that is not implemented here"
+        "match token `$token` does not match inside of a word but that is not implemented here",
     )
     return vidx, token, isspecial
 end
@@ -143,7 +144,7 @@ function extract_and_add_tokens!(added_token_list, vocab_list)
             if vidx == n_vocab + 1
                 push!(vocab_list, token)
             elseif vidx <= n_vocab
-                @assert vocab_list[vidx]==token "Two word has same index: $(token) and $(vocab_list[idx])"
+                @assert vocab_list[vidx] == token "Two word has same index: $(token) and $(vocab_list[idx])"
             else
                 error("There is a gap in the vocabulary")
             end
@@ -158,13 +159,13 @@ struct NomicEmbedder <: AbstractEmbedder
     modelPath::String
     device::Symbol
     session::InferenceSession
-    specialTokens_map::Dict{String, Any}
+    specialTokens_map::Dict{String,Any}
     vocabSize::Int
-    tokenizer
-    tokenizerConfig::Dict{String, Any}
-    vocab::Dict{String, Int}
-    quantizeConfig::Dict{String, Any}
-    config::Dict{String, Any}
+    tokenizer::Any
+    tokenizerConfig::Dict{String,Any}
+    vocab::Dict{String,Int}
+    quantizeConfig::Dict{String,Any}
+    config::Dict{String,Any}
     trunc::Int
     wp::WordPiece
     startsym::String
@@ -173,13 +174,16 @@ struct NomicEmbedder <: AbstractEmbedder
 end
 
 
-function nomicModel(device::Symbol, model::String="nomic")
+function nomicModel(device::Symbol, model::String = "nomic")
     modelPath = joinpath(datadep"nomic_embed_text_v1_model", "model.onnx")
     configPath = joinpath(datadep"nomic_embed_text_v1_config", "config.json")
     tokenizerPath = joinpath(datadep"nomic_embed_text_v1_tokenizer", "tokenizer.json")
-    tokenizerConfigPath = joinpath(datadep"nomic_embed_text_v1_tokenizer_config", "tokenizer_config.json")
-    specialTokensMapPath = joinpath(datadep"nomic_embed_text_v1_special_tokens_map", "special_tokens_map.json")
-    quantizeConfigPath = joinpath(datadep"nomic_embed_text_v1_quantize_config", "quantize_config.json")
+    tokenizerConfigPath =
+        joinpath(datadep"nomic_embed_text_v1_tokenizer_config", "tokenizer_config.json")
+    specialTokensMapPath =
+        joinpath(datadep"nomic_embed_text_v1_special_tokens_map", "special_tokens_map.json")
+    quantizeConfigPath =
+        joinpath(datadep"nomic_embed_text_v1_quantize_config", "quantize_config.json")
     vocabPath = joinpath(datadep"nomic_embed_text_v1_vocab", "vocab.txt")
     specialTokensMap = JSON.parsefile(specialTokensMapPath)
     tokenizer = JSON.parsefile(tokenizerPath)
@@ -188,7 +192,7 @@ function nomicModel(device::Symbol, model::String="nomic")
     tokenizerConfig = JSON.parsefile(tokenizerConfigPath)
     quantizeConfig = JSON.parsefile(quantizeConfigPath)
     config = JSON.parsefile(configPath)
-    modelSession = ONNXRunTime.load_inference(modelPath; execution_provider=:cuda)
+    modelSession = ONNXRunTime.load_inference(modelPath; execution_provider = :cuda)
 
     modelConfig = tokenizer["model"]
     vocabList = reverse_keymap_to_list(modelConfig["vocab"])
@@ -199,7 +203,7 @@ function nomicModel(device::Symbol, model::String="nomic")
         vocabList,
         modelConfig["unk_token"];
         max_char = modelConfig["max_input_chars_per_word"],
-        subword_prefix = modelConfig["continuing_subword_prefix"]
+        subword_prefix = modelConfig["continuing_subword_prefix"],
     )
 
     @assert get(tokenizer["normalizer"], "lowerer_case", true) "Tokenizer must be lowercased. Model implementation is not compatible."
@@ -221,7 +225,7 @@ function nomicModel(device::Symbol, model::String="nomic")
         wp,
         "[CLS]",
         "[SEP]",
-        "[PAD]"
+        "[PAD]",
     )
     return (enc, modelSession)
 end
@@ -245,7 +249,7 @@ The result of embedding passages.
 - `embeddings::AbstractArray{T}`: The embeddings of the passages. With property `embeddings` as column-major matrix of size `(batch_size, embedding_dimension)`.
 - `elapsed::Float64`: The time taken to embed the passages.
 """
-struct EmbedResult{T <: Real}
+struct EmbedResult{T<:Real}
     embeddings::AbstractArray{T}
     elapsed::Float64
 end
@@ -267,9 +271,14 @@ Tokenizes the text and returns the tokens or token IDs (to skip looking up the I
 - `token_ids::Bool = false`: If true, return the token IDs directly. Otherwise, return the tokens.
 - `max_tokens::Union{Nothing, Int} = enc.trunc`: The maximum number of tokens to return (usually defined by the model).
 """
-function tokenize(enc::NomicEmbedder, text::AbstractString;
-        add_special_tokens::Bool = true, add_end_token::Bool = true, token_ids::Bool = false,
-        max_tokens::Union{Nothing, Int} = enc.trunc)
+function tokenize(
+    enc::NomicEmbedder,
+    text::AbstractString;
+    add_special_tokens::Bool = true,
+    add_end_token::Bool = true,
+    token_ids::Bool = false,
+    max_tokens::Union{Nothing,Int} = enc.trunc,
+)
     tokens = token_ids ? Int[] : String[]
     if add_special_tokens
         token = token_ids ? enc.vocab[enc.startsym] : enc.startsym
@@ -279,7 +288,7 @@ function tokenize(enc::NomicEmbedder, text::AbstractString;
         append!(tokens, enc.wp(token; token_ids))
     end
     if !isnothing(max_tokens) && length(tokens) > (max_tokens - 1)
-        tokens = tokens[1:(max_tokens - 1)]
+        tokens = tokens[1:(max_tokens-1)]
     end
     if add_special_tokens || add_end_token
         token = token_ids ? enc.vocab[enc.endsym] : enc.endsym
@@ -297,8 +306,13 @@ Encodes the text and returns the token IDs, token type IDs, and attention mask.
 We enforce `max_tokens` to be a concrete number here to be able to do `split_instead_trunc`.
 `split_instead_trunc` splits any long sequences into several smaller ones.
 """
-function encode(enc::NomicEmbedder, text::String; add_special_tokens::Bool = true,
-        max_tokens::Int = enc.trunc, split_instead_trunc::Bool = false)
+function encode(
+    enc::NomicEmbedder,
+    text::String;
+    add_special_tokens::Bool = true,
+    max_tokens::Int = enc.trunc,
+    split_instead_trunc::Bool = false,
+)
     if !split_instead_trunc
         ## Standard run - if text is longer, we truncate it and ignore
         token_ids = tokenize(enc, text; add_special_tokens, token_ids = true, max_tokens)
@@ -309,8 +323,13 @@ function encode(enc::NomicEmbedder, text::String; add_special_tokens::Bool = tru
         ## Split run - if text is longer, we split it into multiple chunks and encode them separately
         ## Only possible with a single string to know where the chunks belong to
         ## tokenize without special tokens at first
-        token_ids = tokenize(enc, text; add_special_tokens = false,
-            token_ids = true, max_tokens = nothing)
+        token_ids = tokenize(
+            enc,
+            text;
+            add_special_tokens = false,
+            token_ids = true,
+            max_tokens = nothing,
+        )
         ## determine correct chunk size
         start_token = enc.vocab[enc.startsym]
         end_token = enc.vocab[enc.endsym]
@@ -343,12 +362,21 @@ function encode(enc::NomicEmbedder, text::String; add_special_tokens::Bool = tru
     return token_ids, token_type_ids, attention_mask
 end
 
-function encode(enc::NomicEmbedder, query::AbstractString,
-        passage::AbstractString; add_special_tokens::Bool = true)
+function encode(
+    enc::NomicEmbedder,
+    query::AbstractString,
+    passage::AbstractString;
+    add_special_tokens::Bool = true,
+)
     ## Tokenize texts
     token_ids1 = tokenize(enc, query; add_special_tokens, token_ids = true)
-    token_ids2 = tokenize(enc, passage; add_special_tokens = false,
-        add_end_token = add_special_tokens, token_ids = true)
+    token_ids2 = tokenize(
+        enc,
+        passage;
+        add_special_tokens = false,
+        add_end_token = add_special_tokens,
+        token_ids = true,
+    )
     token_type_ids = vcat(zeros(Int, length(token_ids1)), ones(Int, length(token_ids2)))
     token_ids = vcat(token_ids1, token_ids2)
 
@@ -365,17 +393,28 @@ function encode(enc::NomicEmbedder, query::AbstractString,
     return token_ids, token_type_ids, attention_mask
 end
 
-function encode(enc::NomicEmbedder, query::AbstractString,
-        passages::AbstractVector{<:AbstractString}; add_special_tokens::Bool = true)
+function encode(
+    enc::NomicEmbedder,
+    query::AbstractString,
+    passages::AbstractVector{<:AbstractString};
+    add_special_tokens::Bool = true,
+)
 
     ## tokenize query, it will be repeated
     token_ids1 = tokenize(enc, query; add_special_tokens, token_ids = true)
 
-    tokens_ids2_vec = [tokenize(enc, passage; add_special_tokens = false,
-                           add_end_token = add_special_tokens, token_ids = true)
-                       for passage in passages]
-    len_ = maximum(length, tokens_ids2_vec) + length(token_ids1) |>
-           x -> isnothing(enc.trunc) ? x : min(x, enc.trunc)
+    tokens_ids2_vec = [
+        tokenize(
+            enc,
+            passage;
+            add_special_tokens = false,
+            add_end_token = add_special_tokens,
+            token_ids = true,
+        ) for passage in passages
+    ]
+    len_ =
+        maximum(length, tokens_ids2_vec) + length(token_ids1) |>
+        x -> isnothing(enc.trunc) ? x : min(x, enc.trunc)
 
     ## Assumes that padding is done with token ID 0
     token_ids = zeros(Int, len_, length(passages))
@@ -394,13 +433,13 @@ function encode(enc::NomicEmbedder, query::AbstractString,
                 break
             elseif token_ids1_len + i == len_
                 ## give [SEP] token
-                token_ids[token_ids1_len + i, j] = enc.vocab[enc.endsym]
+                token_ids[token_ids1_len+i, j] = enc.vocab[enc.endsym]
             else
                 ## fill the tokens
-                token_ids[token_ids1_len + i, j] = tokens_ids2[i]
+                token_ids[token_ids1_len+i, j] = tokens_ids2[i]
             end
-            token_type_ids[token_ids1_len + i, j] = 1
-            attention_mask[token_ids1_len + i, j] = 1
+            token_type_ids[token_ids1_len+i, j] = 1
+            attention_mask[token_ids1_len+i, j] = 1
         end
     end
     return token_ids, token_type_ids, attention_mask
@@ -427,8 +466,7 @@ result.embeddings # 312x2 matrix of Float32
 ```
 """
 
-function embed(
-        embedder::NomicEmbedderModel, passages::AbstractVector{<:AbstractString})
+function embed(embedder::NomicEmbedderModel, passages::AbstractVector{<:AbstractString})
     t = @elapsed begin
         token_ids, token_type_ids, attention_mask = encode(embedder.encoder, passages)
         ## transpose as the model expects row-major
@@ -437,7 +475,7 @@ function embed(
         onnx_input = Dict(
             "input_ids" => token_ids',
             "token_type_ids" => token_type_ids',
-            "attention_mask" => attention_mask'
+            "attention_mask" => attention_mask',
         )
         out = embedder.session(onnx_input)
         ## Permute dimensions to return column-major embeddings, ie, batch-size X embedding-size
@@ -455,15 +493,18 @@ Embeds a single `passage`.
 If passage is too long for the model AND `split_instead_trunc` is true, the passage is split into several smaller chunks of size `embedder.encoder.trunc` and embedded separately.
 """
 function embed(
-        embedder::NomicEmbedderModel, passage::AbstractString; split_instead_trunc::Bool = false)
+    embedder::NomicEmbedderModel,
+    passage::AbstractString;
+    split_instead_trunc::Bool = false,
+)
     t = @elapsed begin
-        token_ids, token_type_ids, attention_mask = encode(
-            embedder.encoder, passage; split_instead_trunc)
+        token_ids, token_type_ids, attention_mask =
+            encode(embedder.encoder, passage; split_instead_trunc)
         ## transpose as the model expects row-major
         onnx_input = Dict(
             "input_ids" => token_ids',
             "token_type_ids" => token_type_ids',
-            "attention_mask" => attention_mask'
+            "attention_mask" => attention_mask',
         )
         out = embedder.session(onnx_input)
         ## Permute dimensions to return column-major embeddings, ie, batch-size X embedding-size
@@ -473,16 +514,23 @@ function embed(
 end
 
 function (embedder::NomicEmbedderModel)(
-        passages::Union{AbstractString, AbstractVector{<:AbstractString}}; kwargs...)
+    passages::Union{AbstractString,AbstractVector{<:AbstractString}};
+    kwargs...,
+)
     embed(embedder, passages; kwargs...)
 end
 
-function encode(enc::NomicEmbedder, passages::AbstractVector{<:AbstractString};
-    add_special_tokens::Bool = true)
-    tokens_vec = [tokenize(enc, passage; add_special_tokens = true, token_ids = true)
-                for passage in passages]
-    max_len = maximum(length, tokens_vec) |>
-            x -> isnothing(enc.trunc) ? x : min(x, enc.trunc)
+function encode(
+    enc::NomicEmbedder,
+    passages::AbstractVector{<:AbstractString};
+    add_special_tokens::Bool = true,
+)
+    tokens_vec = [
+        tokenize(enc, passage; add_special_tokens = true, token_ids = true) for
+        passage in passages
+    ]
+    max_len =
+        maximum(length, tokens_vec) |> x -> isnothing(enc.trunc) ? x : min(x, enc.trunc)
 
     ## Assumes that padding is done with token ID 0
     token_ids = zeros(Int, max_len, length(passages))

@@ -24,8 +24,12 @@ struct WordPiece
     subword_prefix::String
 end
 
-function WordPiece(vocab_list::Vector{String}, unk::String = "[UNK]";
-        max_char = 200, subword_prefix = "##")
+function WordPiece(
+    vocab_list::Vector{String},
+    unk::String = "[UNK]";
+    max_char = 200,
+    subword_prefix = "##",
+)
     trie = DoubleArrayTrie(copy(vocab_list))
     unki = DoubleArrayTries.lookup(trie, unk)
     index = Vector{Int}(undef, length(vocab_list))
@@ -40,7 +44,7 @@ function WordPiece(vocab::Vector{String}, unki::Int; max_char = 200, subword_pre
     return WordPiece(vocab, unk; max_char, subword_prefix)
 end
 
-struct _WithPrefix{A1, A2} <: AbstractVector{UInt8}
+struct _WithPrefix{A1,A2} <: AbstractVector{UInt8}
     x::A1
     y::A2
     offset::Int
@@ -49,7 +53,7 @@ end
 _WithPrefix(x, y) = (lenx = length(x); _WithPrefix(x, y, lenx, lenx + length(y)))
 function Base.getindex(x::_WithPrefix, i)
     offset = x.offset
-    return i > offset ? x.y[i - offset] : x.x[i]
+    return i > offset ? x.y[i-offset] : x.x[i]
 end
 Base.length(x::_WithPrefix) = x.length
 Base.size(x::_WithPrefix) = (length(x),)
@@ -75,7 +79,7 @@ function (wp::WordPiece)(x::AbstractString; token_ids::Bool = false)
             e = lastindex(x)
             failed = true
             while s <= e
-                cbuf = @view codes[s:(nextind(x, e) - 1)]
+                cbuf = @view codes[s:(nextind(x, e)-1)]
                 buf = isone(s) ? cbuf : _WithPrefix(prefix, cbuf)
                 id = DoubleArrayTries.lookup(wp.trie, buf)
                 if iszero(id)
@@ -107,7 +111,14 @@ function (wp::WordPiece)(x::AbstractString; token_ids::Bool = false)
 end
 
 function Base.show(io::IO, wp::WordPiece)
-    print(io, "WordPiece(vocab_size = ", length(wp.trie),
-        ", unk = ", DoubleArrayTries.decode(wp.trie, wp.unki),
-        ", max_char = ", wp.max_char, ')')
+    print(
+        io,
+        "WordPiece(vocab_size = ",
+        length(wp.trie),
+        ", unk = ",
+        DoubleArrayTries.decode(wp.trie, wp.unki),
+        ", max_char = ",
+        wp.max_char,
+        ')',
+    )
 end
