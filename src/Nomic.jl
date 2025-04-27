@@ -192,7 +192,7 @@ function nomicModel(device::Symbol, model::String = "nomic")
     tokenizerConfig = JSON.parsefile(tokenizerConfigPath)
     quantizeConfig = JSON.parsefile(quantizeConfigPath)
     config = JSON.parsefile(configPath)
-    modelSession = ONNXRunTime.load_inference(modelPath; execution_provider = :cuda)
+    modelSession = ONNXRunTime.load_inference(modelPath; execution_provider = device)
 
     modelConfig = tokenizer["model"]
     vocabList = reverse_keymap_to_list(modelConfig["vocab"])
